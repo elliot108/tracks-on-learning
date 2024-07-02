@@ -20,7 +20,7 @@ async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # send all caps of user's message 
 async def caps(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    all_caps = str(context.args).upper() # take only the arguments (not the command itslef) and caps them all
+    all_caps = "".join(context.args).replace("[]", "").upper() # take only the arguments (not the command itslef) and caps them all
     await context.bot.send_message(chat_id= update.effective_chat.id, text=all_caps)
 
 # inline query 
@@ -31,11 +31,13 @@ async def inline_caps(update:Update, context: ContextTypes.DEFAULT_TYPE):
 
     results.append(
         InlineQueryResultArticle(
-            id= str(uuid4()),
-            title= "CAPS",
+            id= str(uuid4()), #creating a random unique id
+            title= "CAPS", #to show above the text box
             input_message_content=InputTextMessageContent(query.upper())
         )
     )
+
+    await context.bot.answer_inline_query(update.inline_query.id, results)
 
 # unknown command handler 
 async def unknown(update=Update, context = ContextTypes.DEFAULT_TYPE):
