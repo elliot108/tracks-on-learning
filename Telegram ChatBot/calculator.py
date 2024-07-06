@@ -2,7 +2,7 @@ import logging
 from telegram import Update, InlineQueryResultArticle, InputTextMessageContent, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, filters,InlineQueryHandler, CallbackContext
 from uuid import uuid4
-import math
+import necessary_functions as myFunctions
 
 # to see when and why things don't work as expected 
 logging.basicConfig(
@@ -33,252 +33,58 @@ async def help(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 '''
             
     await context.bot.send_message(update.effective_chat.id, message)
-
-# to check if the user's input contains alphabets or other characters that are not mathematical notations
-def contains_Alpha_Or_SpecCha(input):
-    for c in input:
-        if c in "abcdefghijklmnopqrstuvwxyz!@#$&_?,<>~`;:'\"\\|":
-            return True
-    return False
-
-# to check if the user's mathematical expression includes trigonometry 
-def containsTrigoSigns(input: str):
-    if input.find("sin") or input.find("cos") or input.find("tan") or input.find("cot") or input.find("sec") or input.find("cos"):
-        return True
-    return False
-
-# to compute Trigonometry functions
-def computeTrigo(triSign, angle):
-     if triSign == "sin":
-          return math.sin(angle)
-     elif triSign == "cos":
-          return math.cos(angle)
-     elif triSign == "tan":
-          return math.tan(angle)
-     elif triSign == "cot":
-          return math.atan(angle)
-     elif triSign == "sec":
-          return math.acos(angle)
-     elif triSign == "cosec":
-          return math.asin(angle)
-
-# a funciton to handle trogonometric expressions from user
-def calculateTrigo(input):
-    print(input)
-    s = input # user's input will not be changed, only 's' will be changed later
-    trigoSigns = ["sin", "cosec", "cos", "tan", "cot", "sec"]
-    isEnclosed = False # a flag to indicate if the degree is enclosed behind trigo sign
-    # find each sign of trigo in the input
-    for t in trigoSigns:
-        f = s.find(t)
-        while not f == -1:
-            if not t == "cosec":
-                index = f+3
-            else:
-                index = f + 5
-
-            next_cha = s[index]
-
-            # check if next character is a number
-            if next_cha.isdigit():
-                    angle_measure = next_cha
-                    index += 1
-            # check if the degree or angle behind trigo is enclosed in brackets
-            elif next_cha == "(":
-                    isEnclosed = True
-                    angle_measure = s[index+1]
-                    print(angle_measure)
-                    index += 2
-            else:
-                print("no degree behind " + t) 
-                return s
-            
-            # collecting the degree or angle measure described after trigo sign
-            while index < len(s):
-                        next_cha = s[index]
-                        if next_cha.isdigit():
-                            angle_measure += next_cha #add subsequent numbers as angle to compute trigo function
-                            index += 1
-                            continue
-
-                        elif next_cha == ".":
-                            if next_cha.find("."):
-                                print("more than one decimal points in angle measurement behind " + t)
-                                return s
-                            angle_measure += next_cha
-                            index += 1
-                            continue
-                        else:
-                            break
-            
-            # enclosing trigo functions so it will be easier to compute
-            # e.g. sin80 => (sin80) or sin(30) => (sin30)
-            trigo = ""
-            if isEnclosed:
-                 trigo = t + "("+ angle_measure + ")"
-                 s = s.replace(trigo, t+angle_measure)
-            trigo = t+angle_measure
-            print(trigo)
-            s = s.replace(trigo, "("+trigo+")")
-            print(s)
-
-            # computing trigo functions
-            angle_measure = eval(angle_measure) # from string to number
-            radian = math.radians(angle_measure) # from degree to radian 
-            trigo_value = computeTrigo(t, radian)
-            s = s.replace(trigo, str(trigo_value))
-
-            index+= 2
-
-            if index < len(s):
-                f = s.find(t, index)
-            else:
-                break                                   
-    return s
     
-# this funciton will be run when the user sends /calculate commands
+# this funciton will be run when the user sends /calculate command
 async def command_calculate(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     bot = context.bot 
 
     input = str("".join(context.args)).replace(" []", "").lower() # removing all spaces in the input
+    response = myFunctions.calculate(input)
 
-    if input:
-        if contains_Alpha_Or_SpecCha(input): #if the user's input contains alphabets or other characters that are not mathematical notations
-            if containsTrigoSigns(input): # if the input has trigo signs
-                try:
-                    input = calculateTrigo(input)
-                except ValueError:
-                    invalid_input = "Invalid input for trigo function. \nPlease check your trigo signs and degree measures."
-                    await bot.send_message(chat_id, invalid_input)
-                    return
-            else:
-                # if the user's input contains an alphabet or something that's not a number or operator, invalid input message is sent
-                invalid_input = "Please enter numbers and operators only."
-                await bot.send_message(chat_id, invalid_input)
-                return
-                
-        input = input.replace("^", "**") 
-        try:
-            result = eval(input) # evaluating the user's math problem 
-        except (SyntaxError,NameError,TypeError) as e: 
-            # if the user's input cannot be evaluated
-            if type(e) == TypeError:
-                error_msg = '''Please enter a meaningful mathematical expression.                     
-                            \nRemember that I cannot understand some operators that may make sense to you. e.g, if you want to do division, use this '/' operator.
-                            \nAnd please use '*' to multiply. i.e. sending (3)(9) will raise an error.
-                            '''
-            error_msg = '''Please enter a meaningful mathematical expression.
-                        \nMake sure there are at least two operands and one operator in the middle.
-                        \nThere should be no operator alone at the end.
-                        \nAlphabets or words except trigo signs are not accepted. 
-                        \nRemember that I cannot understand some operators that may make sense to you. e.g, if you want to do division, use this '/' operator.
-                        '''
-            await bot.send_message(chat_id, error_msg) 
-            return   
+    if type(response) == tuple:
+        input, result = response
+        response = "The answer of '"+ str(input) + "' is " + str(result)
+    
+    await bot.send_message(chat_id, response)
 
-        await bot.send_message(chat_id, result)
-        
-    else:
-        message = "Now you can enter a mathematical expression. I will compute it and send the result to you."
-        await bot.send_message(chat_id, message)
-        
-# inline query to calculate
 # this will be run when the user mentions this bot's username
 async def inline_calculate(update:Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.inline_query.query
-    print(query)
-    response = "" # this will be the result of the user's math problem
-    message = "" # this will the message that can be seen while typing in telegram
     input = str("".join(query)).replace(" ", "").lower() # removing all spaces in the input
-    print(input)
-    if input:
-        if contains_Alpha_Or_SpecCha(input): #if the user's input contains alphabets or other characters that are not mathematical notations
-            if containsTrigoSigns(input): # if the input has trigo signs
-                try:
-                    input = calculateTrigo(input)
-                except ValueError:
-                    invalid_input = "Invalid input for trigo function"
-                    response = query
-                    message = invalid_input
-                    return
-            else:
-                # if the user's input contains an alphabet or something that's not a number or operator, invalid input message is sent
-                invalid_input = "Please enter numbers and operators only."
-                response = query
-                message = invalid_input
-                return
-                
-        input = input.replace("^", "**") 
-        try:
-            result = eval(input) # evaluating the user's math problem 
-            response = result
-            message = str(result)
-        except (SyntaxError,NameError,TypeError): 
-            # if the user's input cannot be evaluated
-                invalid_input = 'Please enter a meaningful mathematical expression.'
-                response = query
-                message = invalid_input        
-    else:
-        response = "NO INPUT"
-        message = "What do you want to calculate?"
 
-    results = [] 
-    results.append(
+    after_calculating = myFunctions.calculate(input)
+    # if the query could be evaluated, after_calculating should be a tuple
+    if type(after_calculating):
+        result = str(after_calculating[1]) # this will be the result of the user's math problem
+        message = result
+    else:
+        result = str(query) # the user's query will be reflected
+        message = str(after_calculating)
+
+    inline_response = [] 
+    inline_response.append(
         InlineQueryResultArticle(
             id= str(uuid4()), #creating a random unique id
             title= "Calculate", #to show above the text box
-            input_message_content=InputTextMessageContent(response),
+            input_message_content=InputTextMessageContent(result),
             description = message
         )
     )
+    await context.bot.answer_inline_query(update.inline_query.id, inline_response)
 
-    await context.bot.answer_inline_query(update.inline_query.id, results)
-
+# thsi funciton will be run when the suer sends a message
 async def msg_calculate(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     bot = context.bot
     input = str("".join(update.message.text)).replace(" []", "").lower() # removing all spaces in the input
+    response = myFunctions.calculate(input)
 
-    if input:
-        if contains_Alpha_Or_SpecCha(input): #if the user's input contains alphabets or other characters that are not mathematical notations
-            if containsTrigoSigns(input): # if the input has trigo signs
-                try:
-                    input = calculateTrigo(input)
-                except ValueError:
-                    invalid_input = "Invalid input for trigo function. \nPlease check your trigo signs and degree measures."
-                    await bot.send_message(chat_id, invalid_input)
-                    return
-            else:
-                # if the user's input contains an alphabet or something that's not a number or operator, invalid input message is sent
-                invalid_input = "Please enter numbers and operators only."
-                await bot.send_message(chat_id, invalid_input)
-                return
-                
-        input = input.replace("^", "**") 
-        try:
-            result = eval(input) # evaluating the user's math problem 
-        except (SyntaxError,NameError,TypeError) as e: 
-            # if the user's input cannot be evaluated
-            if type(e) == TypeError:
-                error_msg = '''Please enter a meaningful mathematical expression.                     
-                            \nRemember that I cannot understand some operators that may make sense to you. e.g, if you want to do division, use this '/' operator.
-                            \nAnd please use '*' to multiply. i.e. sending (3)(9) will raise an error.
-                            '''
-            error_msg = '''Please enter a meaningful mathematical expression.
-                        \nMake sure there are at least two operands and one operator in the middle.
-                        \nThere should be no operator alone at the end.
-                        \nAlphabets or words except trigo signs are not accepted. 
-                        \nRemember that I cannot understand some operators that may make sense to you. e.g, if you want to do division, use this '/' operator.
-                        '''
-            await bot.send_message(chat_id, error_msg) 
-            return   
-
-        await bot.send_message(chat_id, result)
-        
-    else:
-        message = "Now you can enter a mathematical expression. I will compute it and send the result to you."
-        await bot.send_message(chat_id, message)
+    if type(response) == tuple:
+        input, result = response
+        response = "The answer of '"+ str(input) + "' is " + str(result)
+    
+    await bot.send_message(chat_id, response)
 
 # unknown command handler 
 async def unknown(update=Update, context = ContextTypes.DEFAULT_TYPE):
